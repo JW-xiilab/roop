@@ -1,5 +1,16 @@
+.vs
 .idea
 models
 temp
 __pycache__
 *.mp4
+*.pth
+/start.bat
+/env
+.vscode
+output
+temp
+config.yaml
+run.bat
+venv
+start.sh

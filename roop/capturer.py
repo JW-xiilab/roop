@@ -3,7 +3,19 @@ import cv2
 
 from roop.typing import Frame
 
+<<<<<<< HEAD
 
+=======
+def get_image_frame(filename: str):
+    try:
+        frame = cv2.imread(filename)
+        return frame
+    except:
+        print(f"Exception reading {filename}")
+    return None
+
+    
+>>>>>>> a55b78d4ec1eb6c48da7d36c1954797959a34f37
 def get_video_frame(video_path: str, frame_number: int = 0) -> Optional[Frame]:
     capture = cv2.VideoCapture(video_path)
     frame_total = capture.get(cv2.CAP_PROP_FRAME_COUNT)
