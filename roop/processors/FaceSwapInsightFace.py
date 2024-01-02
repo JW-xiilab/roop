@@ -12,14 +12,13 @@ from roop.utilities import resolve_relative_path
 class FaceSwapInsightFace():
     model_swap_insightface = None
 
-
     processorname = 'faceswap'
     type = 'swap'
 
-
     def Initialize(self, devicename):
         if self.model_swap_insightface is None:
-            model_path = resolve_relative_path('../models/inswapper_128.onnx')
+            # model_path = resolve_relative_path('../models/inswapper_128.onnx')
+            model_path = resolve_relative_path('../models/inswapper_128_MIT.onnx')
             self.model_swap_insightface = insightface.model_zoo.get_model(model_path, providers=roop.globals.execution_providers)
 
     
@@ -32,9 +31,3 @@ class FaceSwapInsightFace():
     def Release(self):
         del self.model_swap_insightface
         self.model_swap_insightface = None
-
-
-                
-
-
-

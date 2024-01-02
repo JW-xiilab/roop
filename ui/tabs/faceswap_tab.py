@@ -281,9 +281,6 @@ def remove_selected_target_face():
     return ui.globals.ui_target_thumbs
 
 
-
-
-
 def on_use_face_from_selected(files, frame_num):
     global IS_INPUT, SELECTION_FACES_DATA
 
@@ -410,7 +407,6 @@ def on_set_frame(sender:str, frame_num):
         list_files_process[idx].endframe = max(frame_num, start)
     
     return gen_processing_text(list_files_process[idx].startframe,list_files_process[idx].endframe)
-    
 
 
 def on_preview_mask(frame_num, files, clip_text):
@@ -461,7 +457,6 @@ def translate_swap_mode(dropdown_text):
         return "all_male"
     
     return "all"
-
 
 
 def start_swap( enhancer, detection, keep_frames, wait_after_extraction, skip_audio, face_distance, blend_ratio,
@@ -549,8 +544,6 @@ def on_destfiles_changed(destfiles):
     if total_frames > 0:
         return gr.Slider.update(value=0, maximum=total_frames), gen_processing_text(list_files_process[idx].startframe,list_files_process[idx].endframe)
     return gr.Slider.update(value=0, maximum=total_frames), ''
-    
-
 
 
 def on_destfiles_selected(evt: gr.SelectData):
@@ -572,8 +565,6 @@ def on_destfiles_selected(evt: gr.SelectData):
         return gr.Slider.update(value=list_files_process[idx].startframe, maximum=total_frames), gen_processing_text(list_files_process[idx].startframe,list_files_process[idx].endframe), fps
     return gr.Slider.update(value=0, maximum=total_frames), gen_processing_text(0,0), fps
     
-    
-    
 
 def on_resultfiles_selected(evt: gr.SelectData, files):
     selected_index = evt.index
@@ -586,7 +577,6 @@ def on_resultfiles_selected(evt: gr.SelectData, files):
         else:
             current_frame = get_image_frame(filename)
         return gr.update(visible=True, value=util.convert_to_gradio(current_frame)), gr.update(visible=False)
-
 
 
 def on_resultfiles_finished(files):

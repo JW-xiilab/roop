@@ -7,8 +7,10 @@ import shutil
 if any(arg.startswith('--execution-provider') for arg in sys.argv):
     os.environ['OMP_NUM_THREADS'] = '1'
 
+import argparse
 import warnings
 from typing import List
+from pathlib import Path
 import platform
 import signal
 import torch
@@ -24,6 +26,7 @@ import roop.util_ffmpeg as ffmpeg
 import ui.main as main
 from settings import Settings
 from roop.face_util import extract_face_images
+from roop.FaceSet import FaceSet
 from roop.ProcessEntry import ProcessEntry
 from roop.ProcessMgr import ProcessMgr
 from roop.ProcessOptions import ProcessOptions
@@ -45,9 +48,26 @@ def parse_args() -> None:
     signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
     roop.globals.headless = False
     # Always enable all processors when using GUI
-    if len(sys.argv) > 1:
-        print('No CLI args supported - use Settings Tab instead')
+    # if len(sys.argv) > 1:
+    #     print('No CLI args supported - use Settings Tab instead')
     roop.globals.frame_processors = ['face_swapper', 'face_enhancer']
+
+def setup_args(parser):
+    parser.add_argument('-i', '--img_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/src/my/a_2.png', type=str, help='source image path of face to swap, ideally in image extension')
+    parser.add_argument('-v', '--video_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/paul_kim_1.mp4', type=str, help='destination video path to swap face with')
+    parser.add_argument('-e', '--enhancer', default='GFPGAN', type=str, help='Enhancer model, currently only GFPGAN available')
+    parser.add_argument('--face_distance', default=0.65, type=float, help='Max Face similiarity Threshold')
+    parser.add_argument('--blend_ratio', default=0.45, type=float, help='Original/Enhanced image blend ratio')
+    parser.add_argument('--keep_frames', action='store_true', help='either keep the each frame saved')
+
+    signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
+    roop.globals.headless = False
+    # Always enable all processors when using GUI
+    # if len(sys.argv) > 1:
+    #     print('No CLI args supported - use Settings Tab instead')
+    roop.globals.frame_processors = ['face_swapper', 'face_enhancer']
+    parser = parser.parse_args()
+    return parser
 
 
 def encode_execution_providers(execution_providers: List[str]) -> List[str]:
@@ -105,18 +125,19 @@ def pre_check() -> bool:
         update_status('Python version is not supported - please upgrade to 3.9 or higher.')
         return False
     
-    download_directory_path = util.resolve_relative_path('../models')
-    util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/inswapper_128.onnx'])
-    util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/GFPGANv1.4.onnx'])
-    util.conditional_download(download_directory_path, ['https://github.com/csxmli2016/DMDNet/releases/download/v1/DMDNet.pth'])
-    util.conditional_download(download_directory_path, ['https://github.com/facefusion/facefusion-assets/releases/download/models/GPEN-BFR-512.onnx'])
+    # download_directory_path = util.resolve_relative_path('../models')
+    # util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/inswapper_128.onnx'])
+    # util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/GFPGANv1.4.onnx'])
+    # util.conditional_download(download_directory_path, ['https://github.com/csxmli2016/DMDNet/releases/download/v1/DMDNet.pth'])
+    # util.conditional_download(download_directory_path, ['https://github.com/facefusion/facefusion-assets/releases/download/models/GPEN-BFR-512.onnx'])
 
-    download_directory_path = util.resolve_relative_path('../models/CLIP')
-    util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/rd64-uni-refined.pth'])
-    download_directory_path = util.resolve_relative_path('../models/CodeFormer')
-    util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/CodeFormerv0.1.onnx'])
+    # download_directory_path = util.resolve_relative_path('../models/CLIP')
+    # util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/rd64-uni-refined.pth'])
+    # download_directory_path = util.resolve_relative_path('../models/CodeFormer')
+    # util.conditional_download(download_directory_path, ['https://huggingface.co/countfloyd/deepfake/resolve/main/CodeFormerv0.1.onnx'])
 
     if not shutil.which('ffmpeg'):
+    #    update_status('ffmpeg is not installed.')
        update_status('ffmpeg is not installed.')
     return True
 
@@ -126,11 +147,11 @@ def set_display_ui(function):
     call_display_ui = function
 
 def update_status(message: str) -> None:
-    global call_display_ui
+    # global call_display_ui
 
     print(message)
-    if call_display_ui is not None:
-        call_display_ui(message)
+    # if call_display_ui is not None:
+    #     call_display_ui(message)
 
 def start() -> None:
     if roop.globals.headless:
@@ -146,47 +167,48 @@ def start() -> None:
 
 def get_processing_plugins(use_clip):
     processors = "faceswap"
-    if use_clip:
-        processors += ",mask_clip2seg"
+    processors += ",gfpgan"
+    # if use_clip:
+    #     processors += ",mask_clip2seg"
     
-    if roop.globals.selected_enhancer == 'GFPGAN':
-        processors += ",gfpgan"
-    elif roop.globals.selected_enhancer == 'Codeformer':
-        processors += ",codeformer"
-    elif roop.globals.selected_enhancer == 'DMDNet':
-        processors += ",dmdnet"
-    elif roop.globals.selected_enhancer == 'GPEN':
-        processors += ",gpen"
+    # if roop.globals.selected_enhancer == 'GFPGAN':
+    #     processors += ",gfpgan"
+    # elif roop.globals.selected_enhancer == 'Codeformer':
+    #     processors += ",codeformer"
+    # elif roop.globals.selected_enhancer == 'DMDNet':
+    #     processors += ",dmdnet"
+    # elif roop.globals.selected_enhancer == 'GPEN':
+    #     processors += ",gpen"
     return processors
 
-def live_swap(frame, swap_mode, use_clip, clip_text, selected_index = 0):
-    global process_mgr
+# def live_swap(frame, swap_mode, use_clip, clip_text, selected_index = 0):
+#     global process_mgr
 
-    if frame is None:
-        return frame
+#     if frame is None:
+#         return frame
 
-    if process_mgr is None:
-        process_mgr = ProcessMgr(None)
+#     if process_mgr is None:
+#         process_mgr = ProcessMgr(None)
     
-    options = ProcessOptions(get_processing_plugins(use_clip), roop.globals.distance_threshold, roop.globals.blend_ratio, swap_mode, selected_index, clip_text)
-    process_mgr.initialize(roop.globals.INPUT_FACESETS, roop.globals.TARGET_FACES, options)
-    newframe = process_mgr.process_frame(frame)
-    if newframe is None:
-        return frame
-    return newframe
+#     options = ProcessOptions(get_processing_plugins(use_clip), roop.globals.distance_threshold, roop.globals.blend_ratio, swap_mode, selected_index, clip_text)
+#     process_mgr.initialize(roop.globals.INPUT_FACESETS, roop.globals.TARGET_FACES, options)
+#     newframe = process_mgr.process_frame(frame)
+#     if newframe is None:
+#         return frame
+#     return newframe
 
 
-def preview_mask(frame, clip_text):
-    import numpy as np
-    global process_mgr
+# def preview_mask(frame, clip_text):
+#     import numpy as np
+#     global process_mgr
     
-    maskimage = np.zeros((frame.shape), np.uint8)
-    if process_mgr is None:
-        process_mgr = ProcessMgr(None)
-    options = ProcessOptions("mask_clip2seg", roop.globals.distance_threshold, roop.globals.blend_ratio, "None", 0, clip_text)
-    process_mgr.initialize(roop.globals.INPUT_FACESETS, roop.globals.TARGET_FACES, options)
-    maskprocessor = next((x for x in process_mgr.processors if x.processorname == 'clip2seg'), None)
-    return process_mgr.process_mask(maskprocessor, frame, maskimage)
+#     maskimage = np.zeros((frame.shape), np.uint8)
+#     if process_mgr is None:
+#         process_mgr = ProcessMgr(None)
+#     options = ProcessOptions("mask_clip2seg", roop.globals.distance_threshold, roop.globals.blend_ratio, "None", 0, clip_text)
+#     process_mgr.initialize(roop.globals.INPUT_FACESETS, roop.globals.TARGET_FACES, options)
+#     maskprocessor = next((x for x in process_mgr.processors if x.processorname == 'clip2seg'), None)
+#     return process_mgr.process_mask(maskprocessor, frame, maskimage)
 
 
 def batch_process(files:list[ProcessEntry], use_clip, new_clip_text, use_new_method, progress) -> None:
@@ -314,12 +336,10 @@ def batch_process(files:list[ProcessEntry], use_clip, new_clip_text, use_new_met
                 update_status(f'Failed processing {os.path.basename(v.finalname)}!')
     end_processing('Finished')
 
-
 def end_processing(msg:str):
     update_status(msg)
     roop.globals.target_folder_path = None
     release_resources()
-
 
 def destroy() -> None:
     if roop.globals.target_path:
@@ -327,9 +347,48 @@ def destroy() -> None:
     release_resources()        
     sys.exit()
 
+def prepare_environment():
+    roop.globals.output_path = os.path.abspath(os.path.join(os.getcwd(), "output"))
+    os.makedirs(roop.globals.output_path, exist_ok=True)
+    if not roop.globals.CFG.use_os_temp_folder:
+        os.environ["TEMP"] = os.environ["TMP"] = os.path.abspath(os.path.join(os.getcwd(), "temp"))
+    os.makedirs(os.environ["TEMP"], exist_ok=True)
+    os.environ["GRADIO_TEMP_DIR"] = os.environ["TEMP"]
+
+def prepare_video(destfiles, list_files_process:list[ProcessEntry] = []):
+    idx = 0
+    # for f in destfiles:
+    list_files_process.append(ProcessEntry(str(destfiles), 0,0, 0))
+    filename = list_files_process[idx].filename
+    if util.is_video(filename) or filename.lower().endswith('gif'):
+        total_frames = get_video_frame_total(filename)
+        if list_files_process[idx].endframe == 0:
+            list_files_process[idx].endframe = total_frames 
+    else:
+        total_frames = 0
+    return list_files_process
+
+def swap(args, video_files, clip_text=None):
+    global is_processing
+
+    if roop.globals.CFG.clear_output:
+        shutil.rmtree(roop.globals.output_path)
+
+    prepare_environment()
+    roop.globals.selected_enhancer = args.enhancer
+    roop.globals.target_path = None
+    roop.globals.distance_threshold = args.face_distance
+    roop.globals.blend_ratio = args.blend_ratio
+    roop.globals.keep_frames = args.keep_frames
+
+    use_clip=False
+    roop.globals.execution_threads = roop.globals.CFG.max_threads
+    batch_process(video_files, use_clip, clip_text, True, progress=None)
+    roop.globals.processing = False
 
 def run() -> None:
-    parse_args()
+    parser = argparse.ArgumentParser(description="FaceSwapper")
+    args = setup_args(parser)
     if not pre_check():
         return
     roop.globals.CFG = Settings('config.yaml')
@@ -337,4 +396,27 @@ def run() -> None:
     roop.globals.video_encoder = roop.globals.CFG.output_video_codec
     roop.globals.video_quality = roop.globals.CFG.video_quality
     roop.globals.max_memory = roop.globals.CFG.memory_limit if roop.globals.CFG.memory_limit > 0 else None
-    main.run()
+    roop.globals.wait_after_extraction = False
+    roop.globals.skip_audio = False
+    roop.globals.face_swap_mode = "first"
+    roop.globals.no_face_action = 0
+    roop.globals.execution_providers = decode_execution_providers([roop.globals.CFG.provider])
+    print(f'Using provider {roop.globals.execution_providers} - Device:{util.get_device()}')  
+    # main.run()
+    prepare_environment()
+    assert util.has_image_extension(args.img_path)
+    roop.globals.source_path = args.img_path
+    SELECTION_FACES_DATA = extract_face_images(roop.globals.source_path,  (False, 0))
+    for f in SELECTION_FACES_DATA:
+        face_set = FaceSet()
+        face = f[0]
+        face.mask_offsets = (0,0)
+        face_set.faces.append(face)
+        roop.globals.INPUT_FACESETS.append(face_set)
+    video_files = prepare_video(Path(args.video_path))
+    swap(args, video_files)
+
+
+if __name__ == '__main__':
+    run()
+

@@ -13,7 +13,6 @@ class Settings:
             pass
         return value
 
-
     def load(self):
         try:
             with open(self.config_file, 'r') as f:
@@ -37,10 +36,6 @@ class Settings:
         self.force_cpu = self.default_get(data, 'force_cpu', False)
         self.output_template = self.default_get(data, 'output_template', '{file}_{time}')
         self.use_os_temp_folder = self.default_get(data, 'use_os_temp_folder', False)
-
-
-
-
 
     def save(self):
         data = {

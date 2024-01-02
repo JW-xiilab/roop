@@ -102,8 +102,6 @@ class ProcessMgr():
                     if p is not None:
                         self.processors.insert(i, p)
 
-
-
     def run_batch(self, source_files, target_files, threads:int = 1):
         progress_bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]'
         self.total_frames = len(source_files)
@@ -134,8 +132,6 @@ class ProcessMgr():
             if update:
                 update()
 
-
-
     def read_frames_thread(self, cap, frame_start, frame_end, num_threads):
         num_frame = 0
         total_num = frame_end - frame_start
@@ -156,7 +152,6 @@ class ProcessMgr():
             self.frames_queue[i].put(None)
 
 
-
     def process_videoframes(self, threadindex, progress) -> None:
         while True:
             frame = self.frames_queue[threadindex].get()
@@ -169,7 +164,6 @@ class ProcessMgr():
                 self.processed_queue[threadindex].put((True, resimg))
                 del frame
                 progress()
-
 
     def write_frames_thread(self):
         nextindex = 0
@@ -186,7 +180,6 @@ class ProcessMgr():
                 if num_producers < 1:
                     return
             
-
 
     def run_batch_inmem(self, source_video, target_video, frame_start, frame_end, fps, threads:int = 1, skip_audio=False):
         cap = cv2.VideoCapture(source_video)
@@ -233,8 +226,6 @@ class ProcessMgr():
         self.processed_queue.clear()
 
 
-
-
     def update_progress(self, progress: Any = None) -> None:
         process = psutil.Process(os.getpid())
         memory_usage = process.memory_info().rss / 1024 / 1024 / 1024
@@ -244,7 +235,7 @@ class ProcessMgr():
             'execution_threads': self.num_threads
         })
         progress.update(1)
-        self.progress_gradio((progress.n, self.total_frames), desc='Processing', total=self.total_frames, unit='frames')
+        # self.progress_gradio((progress.n, self.total_frames), desc='Processing', total=self.total_frames, unit='frames')
 
 
     def on_no_face_action(self, frame:Frame):
@@ -540,7 +531,7 @@ class ProcessMgr():
                 fake_frame = p.Run(inputface, target_face, frame)
                 scale_factor = 0.0
             elif p.type == 'mask':
-                continue
+                continue    
             else:
                 enhanced_frame, scale_factor = p.Run(self.input_face_datas[face_index], target_face, fake_frame)
 
@@ -556,8 +547,6 @@ class ProcessMgr():
             result = self.paste_upscale(fake_frame, enhanced_frame, target_face.matrix, frame, scale_factor, mask_offsets)
 
         return self.auto_unrotate_frame(result, rotation_action)
-
-        
 
 
     def cutout(self, frame:Frame, start_x, start_y, end_x, end_y):
