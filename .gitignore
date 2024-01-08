@@ -16,3 +16,12 @@ venv
 start.sh
 .github
 *.png
+AdaFace/
+retinaface/
+YoloFace/
+arcface_pytorch/
+Caffe2Pytorch/
+HRNet-landmarks/
+HRNet_Facial_Landmark_Detection/
+pytorch_retina/
+debug*

@@ -53,12 +53,14 @@ def parse_args() -> None:
     roop.globals.frame_processors = ['face_swapper', 'face_enhancer']
 
 def setup_args(parser):
-    parser.add_argument('-i', '--img_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/src/my/a_2.png', type=str, help='source image path of face to swap, ideally in image extension')
-    parser.add_argument('-v', '--video_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/paul_kim_1.mp4', type=str, help='destination video path to swap face with')
-    parser.add_argument('-e', '--enhancer', default='GFPGAN', type=str, help='Enhancer model, currently only GFPGAN available')
+    parser.add_argument('-i', '--img_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/src/park_narae.jpg', type=str, help='source image path of face to swap, ideally in image extension')
+    parser.add_argument('-v', '--video_path', default='/DATA_17/kjw/01-DeepFake/tmp_dataset/requests/redcarpet_seoyeji.mp4', type=str, help='destination video path to swap face with')
+    parser.add_argument('-e', '--enhancer', default='', type=str, help='Enhancer model, currently only GFPGAN available')
     parser.add_argument('--face_distance', default=0.65, type=float, help='Max Face similiarity Threshold')
     parser.add_argument('--blend_ratio', default=0.45, type=float, help='Original/Enhanced image blend ratio')
     parser.add_argument('--keep_frames', action='store_true', help='either keep the each frame saved')
+    parser.add_argument('--outputs', default='')
+    parser.add_argument('--custom_fa', action='store_true', help='either use custom face analyser or use naive')
 
     signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
     roop.globals.headless = False
@@ -167,7 +169,7 @@ def start() -> None:
 
 def get_processing_plugins(use_clip):
     processors = "faceswap"
-    processors += ",gfpgan"
+    # processors += ",gfpgan"
     # if use_clip:
     #     processors += ",mask_clip2seg"
     
@@ -220,6 +222,7 @@ def batch_process(files:list[ProcessEntry], use_clip, new_clip_text, use_new_met
 
     # limit threads for some providers
     max_threads = suggest_execution_threads()
+    # max_threads = 1
     if max_threads == 1:
         roop.globals.execution_threads = 1
 
@@ -227,7 +230,6 @@ def batch_process(files:list[ProcessEntry], use_clip, new_clip_text, use_new_met
     videofiles:list[ProcessEntry] = []
            
     update_status('Sorting videos/images')
-
 
     for index, f in enumerate(files):
         fullname = f.filename
@@ -347,8 +349,11 @@ def destroy() -> None:
     release_resources()        
     sys.exit()
 
-def prepare_environment():
-    roop.globals.output_path = os.path.abspath(os.path.join(os.getcwd(), "output"))
+def prepare_environment(output_path=None):
+    if output_path:
+        roop.globals.output_path = os.path.abspath(os.path.join(os.getcwd(), output_path))
+    elif not output_path and not roop.globals.output_path:
+        roop.globals.output_path = os.path.abspath(os.path.join(os.getcwd(), "output"))
     os.makedirs(roop.globals.output_path, exist_ok=True)
     if not roop.globals.CFG.use_os_temp_folder:
         os.environ["TEMP"] = os.environ["TMP"] = os.path.abspath(os.path.join(os.getcwd(), "temp"))
@@ -392,6 +397,7 @@ def run() -> None:
     if not pre_check():
         return
     roop.globals.CFG = Settings('config.yaml')
+    roop.globals.CFG.clear_output = False
     roop.globals.execution_threads = roop.globals.CFG.max_threads
     roop.globals.video_encoder = roop.globals.CFG.output_video_codec
     roop.globals.video_quality = roop.globals.CFG.video_quality
@@ -401,9 +407,11 @@ def run() -> None:
     roop.globals.face_swap_mode = "first"
     roop.globals.no_face_action = 0
     roop.globals.execution_providers = decode_execution_providers([roop.globals.CFG.provider])
+    roop.globals.custom_fa = args.custom_fa
+    # roop.globals.keep_frames = True
     print(f'Using provider {roop.globals.execution_providers} - Device:{util.get_device()}')  
     # main.run()
-    prepare_environment()
+    prepare_environment(args.outputs)
     assert util.has_image_extension(args.img_path)
     roop.globals.source_path = args.img_path
     SELECTION_FACES_DATA = extract_face_images(roop.globals.source_path,  (False, 0))

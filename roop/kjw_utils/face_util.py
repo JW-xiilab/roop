@@ -2,15 +2,15 @@ import threading
 from typing import Any
 import insightface
 
-import roop.globals
-from roop.typing import Frame, Face
+# import roop.globals
+from roop.kjw_utils.typing import Frame, Face
 
 import imutils
 import cv2
 import numpy as np
 from skimage import transform as trans
-from roop.capturer import get_video_frame
-from roop.utilities import resolve_relative_path, conditional_download
+from roop.kjw_utils.capturer import get_video_frame
+from roop.kjw_utils.utils import resolve_relative_path, conditional_download
 from face_analysis import FaceAnalysis
 
 FACE_ANALYSER = None
@@ -19,62 +19,38 @@ THREAD_LOCK_SWAPPER = threading.Lock()
 FACE_SWAPPER = None
 
 
-def get_face_analyser() -> Any:
+def get_face_analyser(args) -> Any:
     global FACE_ANALYSER
 
     with THREAD_LOCK_ANALYSER:
         if FACE_ANALYSER is None:
-            if roop.globals.custom_fa:
+            if args.custom_fa:
                 FACE_ANALYSER = FaceAnalysis()
             else:
-                if roop.globals.CFG.force_cpu:
+                if args.force_cpu:
                     print('Forcing CPU for Face Analysis')
                     FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
                 else:
-                    FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=roop.globals.execution_providers)
-                FACE_ANALYSER.prepare(ctx_id=0, det_size=(640, 640) if roop.globals.default_det_size else (320,320))
+                    FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=args.execution_providers)
+                FACE_ANALYSER.prepare(ctx_id=0, det_size=(640, 640) if args.default_det_size else (320,320))
     return FACE_ANALYSER
 
-def get_face_analyser2() -> Any:
-    global FACE_ANALYSER
-
-    with THREAD_LOCK_ANALYSER:
-        if FACE_ANALYSER is None:
-            FACE_ANALYSER = FaceAnalysis()
-    return FACE_ANALYSER
-
-
-def get_first_face(frame: Frame) -> Any:
+def get_first_face(frame: Frame, args) -> Any:
     try:
-        faces = get_face_analyser().get(frame)
+        faces = get_face_analyser(args).get(frame)
         return min(faces, key=lambda x: x.bbox[0])
-    #   return sorted(faces, reverse=True, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]))[0]
     except:
         return None
-# def get_first_face(frame: Frame) -> Any:
-#     try:
-#         faces = get_face_analyser2().get(frame)
-#         return min(faces, key=lambda x: x.bbox[0])
-#     #   return sorted(faces, reverse=True, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]))[0]
-#     except:
-#         return None
 
-
-def get_all_faces(frame: Frame) -> Any:
+def get_all_faces(frame: Frame, args) -> Any:
     try:
-        faces = get_face_analyser().get(frame)
+        faces = get_face_analyser(args).get(frame)
         return sorted(faces, key = lambda x : x.bbox[0])
     except:
         return None
-# def get_all_faces(frame: Frame) -> Any:
-#     try:
-#         faces = get_face_analyser2().get(frame)
-#         return sorted(faces, key = lambda x : x.bbox[0])
-#     except:
-#         return None
 
-
-def extract_face_images(source_filename, video_info, extra_padding=-1.0):
+def extract_face_images(args, video_info, extra_padding=-1.0):
+    source_filename = args.img_path
     face_data = []
     source_image = None
     
@@ -87,7 +63,7 @@ def extract_face_images(source_filename, video_info, extra_padding=-1.0):
     else:
         source_image = cv2.imread(source_filename)
         
-    faces = get_all_faces(source_image)
+    faces = get_all_faces(source_image, args)
     if faces is None:
         return face_data
 
@@ -158,7 +134,7 @@ def get_face_swapper() -> Any:
     with THREAD_LOCK_SWAPPER:
         if FACE_SWAPPER is None:
             model_path = resolve_relative_path('../models/inswapper_128.onnx')
-            FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=roop.globals.execution_providers)
+            FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=args.execution_providers)
     return FACE_SWAPPER
 
 

@@ -11,13 +11,11 @@ from tqdm import tqdm
 
 from roop.kjw_proc.ProcessOptions import ProcessOptions
 from roop.kjw_utils.face_util import get_first_face, get_all_faces, rotate_image_180, rotate_image_90, rotate_anticlockwise, rotate_clockwise
-from roop.utilities import compute_cosine_distance, get_device, str_to_class
+from roop.kjw_utils.utils import compute_cosine_distance, get_device, str_to_class, get_processing_plugins
 from roop.kjw_utils.typing import Frame
 
-
-
-from roop.ffmpeg_writer import FFMPEG_VideoWriter
-import roop.globals
+from roop.kjw_utils.ffmpeg_writer import FFMPEG_VideoWriter
+# import roop.globals
 
 
 def create_queue(temp_frame_paths: List[str]) -> Queue[str]:
@@ -70,24 +68,26 @@ class ProcessMgr():
     'gpen'          : 'Enhance_GPEN',
     }
 
-    def __init__(self, progress):
+    def __init__(self, args, progress, new_clip_text=None):
         if progress is not None:
             self.progress_gradio = progress
+        self.args = args
+        self.options = ProcessOptions(get_processing_plugins(args.enhancer), args.face_distance, args.blend_ratio, args.face_swap_mode, 0, new_clip_text)
 
 
-    def initialize(self, input_faces, target_faces, options):
+    def initialize(self, input_faces, target_faces):
         self.input_face_datas = input_faces
         self.target_face_datas = target_faces
-        self.options = options
+        # self.options = options
 
-        processornames = options.processors.split(",")
-        devicename = get_device()
+        processornames = self.options.processors.split(",")
+        # devicename = get_device(self.args.execution_providers)
         if len(self.processors) < 1:
             for pn in processornames:
                 classname = self.plugins[pn]
-                module = 'roop.processors.' + classname
+                module = 'roop.kjw_processors.' + classname
                 p = str_to_class(module, classname)
-                p.Initialize(devicename)
+                p.Initialize(self.args.execution_providers)
                 self.processors.append(p)
         else:
             for i in range(len(self.processors) -1, -1, -1):
@@ -99,15 +99,16 @@ class ProcessMgr():
                 if i >= len(self.processors) or self.processors[i].processorname != pn:
                     p = None
                     classname = self.plugins[pn]
-                    module = 'roop.processors.' + classname
+                    module = 'roop.kjw_processors.' + classname
                     p = str_to_class(module, classname)
-                    p.Initialize(devicename)
+                    p.Initialize(self.args.execution_providers)
                     if p is not None:
                         self.processors.insert(i, p)
 
-    def run_batch(self, source_files, target_files, threads:int = 1):
+    def run_batch(self, source_files, target_files):
         progress_bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]'
         self.total_frames = len(source_files)
+        threads = self.args.execution_threads
         self.num_threads = threads
         with tqdm(total=self.total_frames, desc='Processing', unit='frame', dynamic_ncols=True, bar_format=progress_bar_format) as progress:
             with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -123,7 +124,7 @@ class ProcessMgr():
 
     def process_frames(self, source_files: List[str], target_files: List[str], current_files, update: Callable[[], None]) -> None:
         for f in current_files:
-            if not roop.globals.processing:
+            if not self.args.processing:
                 return
             
             temp_frame = cv2.imread(f)
@@ -141,7 +142,7 @@ class ProcessMgr():
         if frame_start > 0:
             cap.set(cv2.CAP_PROP_POS_FRAMES,frame_start)
 
-        while True and roop.globals.processing:
+        while True and self.args.processing:
             ret, frame = cap.read()
             if not ret:
                 break
@@ -184,7 +185,8 @@ class ProcessMgr():
                     return
             
 
-    def run_batch_inmem(self, source_video, target_video, frame_start, frame_end, fps, threads:int = 1, skip_audio=False):
+    def run_batch_inmem(self, source_video, target_video, frame_start, frame_end, fps, skip_audio=False):
+        threads = self.args.execution_threads
         cap = cv2.VideoCapture(source_video)
         # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_count = (frame_end - frame_start) + 1
@@ -201,7 +203,7 @@ class ProcessMgr():
             self.frames_queue.append(Queue(1))
             self.processed_queue.append(Queue(1))
 
-        self.videowriter =  FFMPEG_VideoWriter(target_video, (width, height), fps, codec=roop.globals.video_encoder, crf=roop.globals.video_quality, audiofile=None)
+        self.videowriter =  FFMPEG_VideoWriter(target_video, (width, height), fps, codec=self.args.video_encoder, crf=self.args.video_quality, audiofile=None)
 
         readthread = Thread(target=self.read_frames_thread, args=(cap, frame_start, frame_end, threads))
         readthread.start()
@@ -242,9 +244,9 @@ class ProcessMgr():
 
 
     def on_no_face_action(self, frame:Frame):
-        if roop.globals.no_face_action == 0:
+        if self.args.no_face_action == 0:
             return None, frame
-        elif roop.globals.no_face_action == 2:
+        elif self.args.no_face_action == 2:
             return None, None
 
         
@@ -270,9 +272,9 @@ class ProcessMgr():
         num_swapped, temp_frame = self.swap_faces(frame, temp_frame)
         if num_swapped > 0:
             return temp_frame
-        if roop.globals.no_face_action == use_original_frame:
+        if self.args.no_face_action == use_original_frame:
             return frame
-        if roop.globals.no_face_action == skip_frame:
+        if self.args.no_face_action == skip_frame:
             #This only works with in-mem processing, as it simply skips the frame.
             #For 'extract frames' it simply leaves the unprocessed frame unprocessed and it gets used in the final output by ffmpeg.
             #If we could delete that frame here, that'd work but that might cause ffmpeg to fail unless the frames are renamed, and I don't think we have the info on what frame it actually is?????
@@ -293,7 +295,7 @@ class ProcessMgr():
         num_faces_found = 0
 
         if self.options.swap_mode == "first":
-            face = get_first_face(frame)
+            face = get_first_face(frame, self.args)
 
             if face is None:
                 return num_faces_found, frame
@@ -301,7 +303,7 @@ class ProcessMgr():
             num_faces_found += 1
             temp_frame = self.process_face(self.options.selected_index, face, temp_frame)
         else:
-            faces = get_all_faces(frame)
+            faces = get_all_faces(frame, self.args)
             if faces is None:
                 return num_faces_found, frame
 
