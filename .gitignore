@@ -23,5 +23,10 @@ arcface_pytorch/
 Caffe2Pytorch/
 HRNet-landmarks/
 HRNet_Facial_Landmark_Detection/
-pytorch_retina/
+pytorch_retinaface/
 debug*
+*.ipynb
+installer/
+CONTRIBUTING.md
+LICENSE
+.flake8
